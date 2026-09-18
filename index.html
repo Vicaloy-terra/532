@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>今夜别开灯</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body {
+    width:100%; height:100%; overflow:hidden;
+    background:#000; color:#c9c9c9;
+    font-family:"SimSun","Songti SC",serif;
+    user-select:none; -webkit-tap-highlight-color:transparent;
+  }
+  #game { position:absolute; inset:0; }
+  #dark {
+    position:absolute; inset:0;
+    background:radial-gradient(circle 90px at 50% 50%,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 45%,
+      rgba(0,0,0,0.96) 75%, #000 100%);
+    pointer-events:none; z-index:5; transition:opacity .25s;
+  }
+  #dark.off {
+    background:radial-gradient(circle 40px at 50% 50%,
+      rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.98) 60%, #000 100%);
+  }
+  #text {
+    position:absolute; left:0; right:0; bottom:12%;
+    padding:0 8%; text-align:center;
+    font-size:19px; line-height:1.9;
+    text-shadow:0 0 12px #000,0 0 4px #000;
+    z-index:10; pointer-events:none; min-height:120px;
+  }
+  #text .sys { color:#5a6b5a; font-size:15px; letter-spacing:2px; }
+  #text .warn { color:#c23a3a; }
+  #text .msg {
+    color:#8fb08f; font-size:16px; border:1px solid #2a3a2a;
+    display:inline-block; padding:6px 14px; margin-top:8px;
+    background:rgba(0,10,0,.6);
+  }
+  #hint {
+    position:absolute; left:0; right:0; bottom:3%;
+    text-align:center; font-size:13px; color:#444;
+    letter-spacing:4px; z-index:10; animation:blink 2s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:.25} 50%{opacity:.8} }
+  #battery {
+    position:absolute; top:14px; right:16px;
+    width:90px; height:14px; border:1px solid #444;
+    z-index:10; padding:2px;
+  }
+  #battery i { display:block; height:100%; background:#6a8f6a; transition:width .4s, background .4s; }
+  #face {
+    position:absolute; inset:0; z-index:8;
+    display:none; align-items:center; justify-content:center;
+  }
+  #face.show { display:flex; animation:shake .06s infinite; }
+  @keyframes shake {
+    0%{transform:translate(0,0)} 25%{transform:translate(-6px,4px)}
+    50%{transform:translate(5px,-5px)} 75%{transform:translate(-4px,-3px)}
+    100%{transform:translate(0,0)}
+  }
+  #face canvas { filter:contrast(1.6) brightness(.9); max-width:90vw; max-height:80vh; }
+  #flash {
+    position:absolute; inset:0; background:#7a0000;
+    opacity:0; z-index:9; pointer-events:none;
+  }
+  #flash.on { animation:redflash .35s; }
+  @keyframes redflash { 0%{opacity:.85} 100%{opacity:0} }
+  .obj { position:absolute; z-index:3; font-size:60px; opacity:.85; transition:transform .4s, opacity .4s; }
+  #ball { left:50%; top:70%; transform:translate(-50%,0); }
+  #ball.roll { animation:roll 2.2s ease-in forwards; }
+  @keyframes roll {
+    0%{ top:10%; transform:translate(-50%,0) rotate(0deg); }
+    100%{ top:66%; transform:translate(-50%,0) rotate(720deg); }
+  }
+  #girl {
+    left:50%; top:-30%; transform:translate(-50%,0) rotate(180deg);
+    font-size:110px; opacity:0; transition:top 1.2s, opacity 1.2s;
+  }
+  #girl.show { top:12%; opacity:1; }
+  #girl.behind { top:70%; opacity:1; transition:top .1s; }
+  #end {
+    position:absolute; inset:0; z-index:20; background:#000;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:0 10%;
+  }
+  #end.show { display:flex; }
+  #end h1 { font-size:26px; letter-spacing:8px; margin-bottom:24px; font-weight:normal; }
+  #end p { font-size:15px; line-height:2.2; color:#666; }
+  #end .red { color:#8a1a1a; }
+  #end button {
+    margin-top:32px; background:none; border:1px solid #333;
+    color:#777; padding:10px 26px; font-family:inherit;
+    font-size:14px; letter-spacing:4px; cursor:pointer;
+  }
+  #end button:hover { border-color:#666; color:#aaa; }
+  #start {
+    position:absolute; inset:0; z-index:30; background:#000;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:0 12%;
+  }
+  #start h1 { font-size:30px; letter-spacing:12px; margin-bottom:10px; font-weight:normal; color:#b5b5b5; }
+  #start .sub { font-size:12px; color:#3a3a3a; letter-spacing:6px; margin-bottom:40px; }
+  #start p { font-size:14px; line-height:2.2; color:#666; margin-bottom:8px; }
+  #start .key { color:#8fb08f; }
+  #start button {
+    margin-top:36px; background:none; border:1px solid #3a1a1a;
+    color:#8a5a5a; padding:12px 34px; font-family:inherit;
+    font-size:15px; letter-spacing:6px; cursor:pointer;
+    animation:pulse 2.5s infinite;
+  }
+  @keyframes pulse { 0%,100%{border-color:#3a1a1a} 50%{border-color:#7a2a2a} }
+  .fade { animation:fadeout 1s forwards; }
+  @keyframes fadeout { to{opacity:0; visibility:hidden} }
+  #err {
+    position:absolute; left:0; right:0; top:0; z-index:99;
+    background:#300; color:#f88; font-size:12px;
+    padding:6px 10px; display:none; white-space:pre-wrap;
+    font-family:monospace;
+  }
+</style>
+</head>
+<body>
+<div id="err"></div>
+<div id="game">
+  <div class="obj" id="ball" style="display:none">⚫</div>
+  <div class="obj" id="girl" style="display:none">👧</div>
+  <div id="dark" class="off"></div>
+  <div id="flash"></div>
+  <div id="face"><canvas id="fc" width="360" height="480"></canvas></div>
+  <div id="battery"><i style="width:100%"></i></div>
+  <div id="text"></div>
+  <div id="hint">点击屏幕 · 切换手电筒</div>
+
+  <div id="start">
+    <h1>今夜别开灯</h1>
+    <div class="sub">DON'T TURN ON THE LIGHT</div>
+    <p>你患有严重夜盲症。</p>
+    <p>手机闪光灯是你唯一的光源——</p>
+    <p class="key">但光照到的东西，会朝你靠近。</p>
+    <p style="margin-top:20px;color:#444">建议：关灯 · 戴耳机 · 一个人</p>
+    <button id="btnStart" type="button">进 入</button>
+  </div>
+
+  <div id="end">
+    <h1 id="endTitle"></h1>
+    <p id="endText"></p>
+    <button id="btnAgain" type="button">再 来 一 次</button>
+  </div>
+</div>
+
+<script>
+/* 全局错误显示，避免白屏 */
+window.onerror = function(msg, src, line, col){
+  var e = document.getElementById('err');
+  e.style.display = 'block';
+  e.textContent = 'ERROR: ' + msg + ' @' + line + ':' + col;
+};
+
+(function(){
+'use strict';
+
+var $ = function(s){ return document.querySelector(s); };
+var darkEl = $('#dark'), textEl = $('#text'), hintEl = $('#hint');
+var ballEl = $('#ball'), girlEl = $('#girl');
+var faceEl = $('#face'), fc = $('#fc'), ctx = fc.getContext('2d');
+var flashEl = $('#flash'), batEl = $('#battery i');
+var startEl = $('#start'), endEl = $('#end');
+
+var G = {
+  light:false,
+  battery:100,
+  scene:0,
+  running:false,
+  acted:false,
+  ending:null,
+  _action:null
+};
+
+/* ---------- 音效 ---------- */
+var AC = null;
+function audio(){
+  try{
+    if(!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+    if(AC.state === 'suspended') AC.resume();
+    return AC;
+  }catch(e){ return null; }
+}
+function beep(freq, dur, type, vol){
+  type = type || 'sine'; vol = vol || .15;
+  try{
+    var a = audio(); if(!a) return;
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(); o.stop(a.currentTime + dur);
+  }catch(e){}
+}
+function noise(dur, vol){
+  vol = vol || .2;
+  try{
+    var a = audio(); if(!a) return;
+    var n = Math.floor(a.sampleRate * dur);
+    var buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+    for(var i=0;i<n;i++) d[i] = (Math.random()*2-1)*(1-i/n);
+    var s = a.createBufferSource(), g = a.createGain();
+    s.buffer = buf; g.gain.value = vol;
+    s.connect(g); g.connect(a.destination); s.start();
+  }catch(e){}
+}
+function heartbeat(){
+  beep(58,.16,'sine',.35);
+  setTimeout(function(){ beep(48,.2,'sine',.28); },180);
+}
+function scream(){
+  try{
+    var a = audio(); if(!a) return;
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(880, a.currentTime);
+    o.frequency.exponentialRampToValueAtTime(90, a.currentTime + .5);
+    g.gain.setValueAtTime(.3, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, a.currentTime + .6);
+    o.connect(g); g.connect(a.destination);
+    o.start(); o.stop(a.currentTime + .6);
+  }catch(e){}
+  noise(.4,.25);
+}
+var drone = null;
+function startDrone(){
+  try{
+    var a = audio(); if(!a || drone) return;
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = 'sine'; o.frequency.value = 42;
+    g.gain.value = .06;
+    o.connect(g); g.connect(a.destination); o.start();
+    drone = {o:o, g:g};
+  }catch(e){}
+}
+
+/* ---------- 打字机（简化版：纯文本+按段落标签） ---------- */
+var typingTimer = null;
+function say(html, speed, cb){
+  speed = speed || 32;
+  if(typingTimer){ clearInterval(typingTimer); typingTimer = null; }
+  textEl.innerHTML = '';
+
+  // 把 html 拆成 token 序列：{ch, cls}
+  // 支持 <span class="x">..</span> 和 <div class="msg">..</div>
+  var tokens = [];
+  var i = 0;
+  while(i < html.length){
+    if(html[i] === '<'){
+      var end = html.indexOf('>', i);
+      if(end === -1){ i++; continue; }
+      var tag = html.substring(i, end+1);
+      var cls = null, isDiv = false;
+      if(tag.indexOf('class="sys"') !== -1) cls = 'sys';
+      else if(tag.indexOf('class="warn"') !== -1) cls = 'warn';
+      else if(tag.indexOf('class="msg"') !== -1){ cls = 'msg'; isDiv = true; }
+      if(cls && tag[1] !== '/'){
+        // 找到对应闭合
+        var closeTag = isDiv ? '</div>' : '</span>';
+        var closeIdx = html.indexOf(closeTag, end);
+        if(closeIdx === -1) closeIdx = html.length;
+        var inner = html.substring(end+1, closeIdx);
+        var j = 0;
+        while(j < inner.length){
+          if(inner[j] === '<'){
+            var e2 = inner.indexOf('>', j);
+            if(e2 === -1){ j++; continue; }
+            j = e2 + 1; continue;
+          }
+          tokens.push({ch: inner[j], cls: cls, isDiv: isDiv});
+          j++;
+        }
+        i = closeIdx + closeTag.length;
+        continue;
+      }
+      i = end + 1;
+      continue;
+    }
+    tokens.push({ch: html[i], cls: null, isDiv: false});
+    i++;
+  }
+
+  var idx = 0;
+  var container = document.createElement('div');
+  textEl.appendChild(container);
+
+  typingTimer = setInterval(function(){
+    if(idx >= tokens.length){
+      clearInterval(typingTimer); typingTimer = null;
+      if(cb) cb();
+      return;
+    }
+    var tk = tokens[idx];
+    var target;
+    if(tk.isDiv){
+      target = container.querySelector('.msg');
+      if(!target){
+        target = document.createElement('div');
+        target.className = 'msg';
+        container.appendChild(target);
+      }
+    } else if(tk.cls){
+      target = container.querySelector('span.' + tk.cls);
+      if(!target){
+        target = document.createElement('span');
+        target.className = tk.cls;
+        container.appendChild(target);
+      }
+    } else {
+      target = container.querySelector('span.plain');
+      if(!target){
+        target = document.createElement('span');
+        target.className = 'plain';
+        container.appendChild(target);
+      }
+    }
+    target.textContent += tk.ch;
+    if(Math.random() < .22) beep(1100 + Math.random()*500, .012, 'square', .01);
+    idx++;
+  }, speed);
+}
+
+/* ---------- 恐怖脸 ---------- */
+function drawFace(mode){
+  var w = fc.width, h = fc.height;
+  ctx.clearRect(0,0,w,h);
+  var grd = ctx.createRadialGradient(w/2,h/2,20,w/2,h/2,w/2);
+  if(mode === 'blank'){ grd.addColorStop(0,'#d8d0c2'); grd.addColorStop(1,'#8a8070'); }
+  else { grd.addColorStop(0,'#c8b8a6'); grd.addColorStop(1,'#5a4a3a'); }
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.ellipse(w/2,h/2,w/2.4,h/2.2,0,0,7); ctx.fill();
+
+  if(mode === 'blank'){
+    ctx.fillStyle = 'rgba(60,50,40,.25)';
+    ctx.beginPath(); ctx.ellipse(w/2,h*0.62,w*0.18,h*0.03,0,0,7); ctx.fill();
+  } else {
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.ellipse(w*0.35,h*0.42,26,34,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(w*0.65,h*0.42,26,34,0,0,7); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,0,0,.6)'; ctx.lineWidth = 2;
+    for(var k=0;k<8;k++){
+      ctx.beginPath(); ctx.moveTo(w*0.35,h*0.42);
+      ctx.lineTo(w*0.35+Math.cos(k)*60, h*0.42+Math.sin(k)*70); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w*0.65,h*0.42);
+      ctx.lineTo(w*0.65+Math.cos(k)*60, h*0.42+Math.sin(k)*70); ctx.stroke();
+    }
+    ctx.fillStyle = '#0a0000';
+    ctx.beginPath();
+    ctx.moveTo(w*0.18,h*0.66);
+    ctx.quadraticCurveTo(w*0.5,h*0.98,w*0.82,h*0.66);
+    ctx.quadraticCurveTo(w*0.5,h*0.76,w*0.18,h*0.66);
+    ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    for(var m=0;m<7;m++){
+      var x = w*0.22 + m*(w*0.56/6);
+      ctx.beginPath();
+      ctx.moveTo(x,h*0.68);
+      ctx.lineTo(x+10,h*0.68);
+      ctx.lineTo(x+5,h*0.75);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(0,0,0,.5)';
+    ctx.beginPath(); ctx.ellipse(w/2,h*0.55,8,14,0,0,7); ctx.fill();
+  }
+  try{
+    var img = ctx.getImageData(0,0,w,h), d = img.data;
+    for(var p=0;p<d.length;p+=4){
+      var nz = (Math.random()-.5)*38;
+      d[p]+=nz; d[p+1]+=nz; d[p+2]+=nz;
+    }
+    ctx.putImageData(img,0,0);
+  }catch(e){}
+}
+function showFace(mode){
+  drawFace(mode);
+  faceEl.classList.add('show');
+  scream();
+}
+function hideFace(){ faceEl.classList.remove('show'); }
+
+/* ---------- 界面 ---------- */
+function setLight(on){
+  if(G.battery <= 0) on = false;
+  G.light = on;
+  if(on) darkEl.classList.remove('off');
+  else darkEl.classList.add('off');
+  if(on) beep(900,.05,'square',.05); else beep(300,.06,'square',.04);
+  hintEl.textContent = on ? '点击屏幕 · 关闭手电' : '点击屏幕 · 打开手电';
+}
+function setBattery(v){
+  G.battery = Math.max(0, Math.min(100, v));
+  batEl.style.width = G.battery + '%';
+  batEl.style.background = G.battery>50 ? '#6a8f6a' : G.battery>20 ? '#8f8a5a' : '#8f3a3a';
+  if(G.battery <= 0 && G.light) setLight(false);
+}
+function redFlash(){
+  flashEl.classList.remove('on');
+  void flashEl.offsetWidth;
+  flashEl.classList.add('on');
+}
+
+/* ---------- 电量 ---------- */
+setInterval(function(){
+  if(!G.running) return;
+  if(G.light){
+    setBattery(G.battery - 0.35);
+    if(Math.random() < .06) noise(.03,.02);
+  } else {
+    setBattery(G.battery - 0.02);
+  }
+},100);
+
+/* ---------- 剧情 ---------- */
+var scenes = {};
+
+scenes[0] = function(){
+  say('凌晨 1:47。电梯坏了。你住在 7 楼。', 40, function(){
+    setTimeout(function(){
+      ballEl.style.display = 'block';
+      ballEl.classList.add('roll');
+      var t = 0;
+      var iv = setInterval(function(){
+        beep(1800-t*80,.03,'square',.06);
+        beep(600-t*20,.04,'sine',.04);
+        if(++t > 14) clearInterval(iv);
+      },140);
+      say('楼上传来弹珠落地的声音……<br><span class="sys">哒……哒……哒……</span>', 45, function(){
+        waitAction('照它', function(){
+          redFlash();
+          setTimeout(function(){
+            say('<span class="warn">弹珠上有一只眼睛。它眨了一下。</span>', 55, function(){
+              setTimeout(function(){
+                girlEl.style.display = 'block';
+                girlEl.classList.add('show');
+                beep(120,.5,'sawtooth',.2); noise(.5,.15);
+                say('<span class="warn">一个穿红裙子的女孩倒挂在天花板上，对着你笑。</span>', 50, function(){
+                  setTimeout(function(){
+                    girlEl.classList.remove('show');
+                    girlEl.classList.add('behind');
+                    showFace('demon');
+                    setTimeout(function(){
+                      hideFace();
+                      say('你关掉手电，听到她落地了。<br><span class="warn">哒。</span>', 60, function(){
+                        setBattery(G.battery - 15);
+                        setTimeout(function(){ go(1); }, 1800);
+                      });
+                    }, 900);
+                  }, 1400);
+                });
+              }, 500);
+            });
+          }, 400);
+        });
+      });
+    }, 800);
+  });
+};
+
+scenes[1] = function(){
+  say('你狂奔到 7 楼，钥匙插了三次才对准锁孔。', 38, function(){
+    setTimeout(function(){
+      say('进门。反锁。喘气。', 45, function(){
+        setTimeout(function(){
+          say('你打开灯——', 50, function(){
+            setTimeout(function(){
+              beep(80,.1,'square',.2); noise(.15,.2);
+              say('<span class="warn">灯管闪了两下，灭了。整栋楼停电了。</span>', 45, function(){
+                setTimeout(function(){ go(2); }, 1500);
+              });
+            }, 900);
+          });
+        }, 1000);
+      });
+    }, 1200);
+  });
+};
+
+scenes[2] = function(){
+  say('你摸黑走进卧室。', 45, function(){
+    setTimeout(function(){
+      beep(1400,.08,'sine',.1);
+      say('<span class="sys">手机自己亮了。</span>', 50, function(){
+        setTimeout(function(){
+          say('微信消息，来自你自己的账号：<div class="msg">别回头。我在你床上。</div>', 40, function(){
+            heartbeat();
+            setTimeout(function(){
+              say('你感觉到床垫微微下陷……被子里有东西在动。', 45, function(){
+                setTimeout(function(){
+                  say('你不敢看。你爬向衣柜，躲进去。', 50, function(){
+                    setTimeout(function(){
+                      say('透过缝隙，床上什么都没有。被子平整。', 45, function(){
+                        setTimeout(function(){
+                          beep(1300,.08,'sine',.1);
+                          say('手机又亮了：<div class="msg">衣柜里好挤。</div>', 42, function(){
+                            var t = 0;
+                            var iv = setInterval(function(){
+                              noise(.25,.05);
+                              if(++t > 3) clearInterval(iv);
+                            },600);
+                            setTimeout(function(){
+                              say('<span class="warn">你感觉到后颈有呼吸。温热，潮湿，带着腐烂的甜味。</span>', 48, function(){
+                                setTimeout(function(){
+                                  say('你慢慢回头——', 80, function(){
+                                    setTimeout(function(){ go(3); }, 1400);
+                                  });
+                                }, 1500);
+                              });
+                            }, 2200);
+                          });
+                        }, 1600);
+                      });
+                    }, 1500);
+                  });
+                }, 1800);
+              });
+            }, 1600);
+          });
+        }, 800);
+      });
+    }, 1200);
+  });
+};
+
+scenes[3] = function(){
+  setLight(true);
+  showFace('demon');
+  setTimeout(function(){
+    hideFace();
+    setLight(false);
+    say('那是一张完全空白的脸。<br>没有五官，皮肤像融化的蜡。', 50, function(){
+      setTimeout(function(){
+        say('<span class="warn">它在笑。你能感觉到。虽然它没有嘴。</span>', 50, function(){
+          setTimeout(function(){
+            say('<span class="warn">「你照到我了。」</span>', 70, function(){
+              setTimeout(function(){
+                say('<span class="warn">「现在，我要进到你里面。」</span>', 70, function(){
+                  var t = 0;
+                  var iv = setInterval(function(){
+                    noise(.2,.12); beep(200+Math.random()*300,.1,'sawtooth',.08);
+                    if(++t > 8) clearInterval(iv);
+                  },180);
+                  setTimeout(function(){ go(4); }, 1800);
+                });
+              }, 1600);
+            });
+          }, 1500);
+        });
+      }, 1400);
+    });
+  }, 1100);
+};
+
+scenes[4] = function(){
+  say('第二天早上，物业来修灯。', 45, function(){
+    setTimeout(function(){
+      say('他们发现 7 楼的住户站在门口，穿着睡衣，拿着手机。', 42, function(){
+        setTimeout(function(){
+          say('「你没事吧？」物业问。', 45, function(){
+            setTimeout(function(){
+              say('你转过头，微笑。', 60, function(){
+                setTimeout(function(){
+                  showFace('blank');
+                  redFlash();
+                  setTimeout(function(){
+                    hideFace();
+                    say('<span class="warn">「没事啊。你看，天亮了。」</span>', 55, function(){
+                      setTimeout(function(){ end('normal'); }, 2200);
+                    });
+                  }, 1200);
+                }, 1200);
+              });
+            }, 1500);
+          });
+        }, 1400);
+      });
+    }, 1500);
+  });
+};
+
+function go(n){
+  G.scene = n;
+  G.acted = false;
+  scenes[n] && scenes[n]();
+}
+
+function waitAction(label, cb){
+  G.acted = false;
+  G._action = cb;
+  hintEl.textContent = '点击屏幕 · ' + label;
+}
+
+function end(type){
+  G.running = false;
+  G.ending = type;
+  startDrone();
+  var titles = { normal:'今 夜 别 开 灯', hidden:'前 置 摄 像 头' };
+  var texts = {
+    normal: '你被替换了。<br>从你关掉手电的那一刻起。<br><br><span class="red">这个"你"，只是它以为自己还是你。</span><br><br>请确认你身后没有人。<br>请确认你的脸还在。<br>请确认——<br>你还在。',
+    hidden: '整个小区都是它们的养殖场。<br>每个住户家里都养着一只"空白脸"。<br><br>它们通过手机传播，通过闪光灯定位，<br>通过"看"来寄生。<br><br><span class="red">而你，早就被替换了。</span>'
+  };
+  $('#endTitle').textContent = titles[type] || titles.normal;
+  $('#endText').innerHTML = texts[type] || texts.normal;
+  endEl.classList.add('show');
+  hintEl.style.display = 'none';
+}
+
+/* ---------- 交互 ---------- */
+function tap(e){
+  if(!G.running) return;
+  if(G._action && !G.acted){
+    G.acted = true;
+    var cb = G._action; G._action = null;
+    cb();
+    return;
+  }
+  if(!G._action) setLight(!G.light);
+}
+
+// 用 pointerdown 统一处理鼠标/触屏，且只绑在 #game 上
+var gameEl = $('#game');
+gameEl.addEventListener('pointerdown', function(e){
+  tap(e);
+}, false);
+
+document.addEventListener('keydown', function(e){
+  if(e.code === 'Space' && G.running && !G._action){
+    e.preventDefault();
+    setLight(!G.light);
+  }
+});
+
+/* ---------- 开始 / 重来 ---------- */
+$('#btnStart').addEventListener('click', function(e){
+  e.stopPropagation();
+  audio();
+  startEl.classList.add('fade');
+  setTimeout(function(){ startEl.style.display = 'none'; }, 1000);
+  G.running = true;
+  setLight(false);
+  setBattery(100);
+  startDrone();
+  go(0);
+}, false);
+
+$('#btnAgain').addEventListener('click', function(e){
+  e.stopPropagation();
+  location.reload();
+}, false);
+
+// 防止触屏双击缩放
+document.addEventListener('touchstart', function(e){
+  if(e.touches.length > 1) e.preventDefault();
+}, {passive:false});
+
+})();
+</script>
+</body>
+</html>
